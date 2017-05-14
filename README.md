@@ -1,2 +1,4 @@
 # GoHexIO
-Go(lang) packages to read and write Intel hex &amp; Motorola SREC files
+This repo contains Go(lang) packages to read and write Intel hex
+and Motorola SREC files.  It is a work in progress and purely
+pedagogical in nature.
