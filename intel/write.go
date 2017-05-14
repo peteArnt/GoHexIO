@@ -74,15 +74,19 @@ func (x *Writer) Write(p []byte) (int, error) {
 }
 
 func (x *Writer) Flush() error {
-	err := x.emitDataRecord(x.fifo.Next(x.fifo.Len()))
-	if err != nil {
-		return err
+	if x.fifo.Len() > 0 {
+		err := x.emitDataRecord(x.fifo.Next(x.fifo.Len()))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // Note: the underlying io.Writer is NOT closed
 func (x *Writer) Close() error {
+	x.Flush()
+
 	// collect all the stuff that goes into this type of record
 	var data = []interface{}{
 		byte(0),   // byte count
