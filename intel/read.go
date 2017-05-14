@@ -10,19 +10,20 @@ import (
 	"strings"
 )
 
+// RecTyp indicates the type of Intel Hex record
 type RecTyp byte
 
+// Enumerated hex record types
 const (
-	Data RecTyp = iota
-	EndOfFile
-	ExtSegAddr
-	StartSegAddr
-	ExtLinAddr
-	StartLinAddr
-
-	UnkTyp RecTyp = 0xff
+	Data         RecTyp = iota // 00
+	EndOfFile                  // 01
+	ExtSegAddr                 // 02
+	StartSegAddr               // 03
+	ExtLinAddr                 // 04
+	StartLinAddr               // 05
 )
 
+// HexRec is an abstract hex record
 type HexRec struct {
 	Address    uint16
 	RecordType RecTyp
@@ -117,6 +118,9 @@ func decodeRecord(s string) (*HexRec, error) {
 	return hr, nil
 }
 
+// ReadFile reads a hex file specified by fn and returns a slice of
+// pointers to HexRec. If error is non-nil, it will indicate an
+// issue reading the hex file or parsing a hex record.
 func ReadFile(fn string) ([]*HexRec, error) {
 	content, err := ioutil.ReadFile(fn)
 	if err != nil {
@@ -137,11 +141,11 @@ func ReadFile(fn string) ([]*HexRec, error) {
 	return hrecs, nil
 }
 
-// Merge contiguous blocks of data thus resulting in fewer records
+// CoalesceDataRecs merges contiguous runs of data records
 func CoalesceDataRecs(list []*HexRec) []*HexRec {
 	type handler func(r *HexRec)
 	var (
-		dataRecGroup   bool = false
+		dataRecGroup   bool
 		addressCounter uint16
 		outList        []*HexRec
 		data           bytes.Buffer
