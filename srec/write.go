@@ -8,14 +8,17 @@ import (
 	"io"
 )
 
+// AddrMode is a data type used for Address Mode enumerations
 type AddrMode int
 
+// Address modes
 const (
 	Addr16 AddrMode = 16
 	Addr24 AddrMode = 24
 	Addr32 AddrMode = 32
 )
 
+// Writer implements the Motorola S-Record writer
 type Writer struct {
 	// State vars
 	w     io.Writer    // Where to channel text output
@@ -23,7 +26,7 @@ type Writer struct {
 	count uint32       // count of S1/S2/S3 records emitted to write stream
 	fin   bool         // Close() has been called
 	tail  []byte       // post-fragment buffer
-	buf   bytes.Buffer // Used as internal Write FIFO
+	fifo  bytes.Buffer // Used as internal Write FIFO
 
 	// Configuration vars
 	emitCountRec  bool     // Emit appropriate count record at file close
@@ -35,34 +38,34 @@ type Writer struct {
 	headerEmitted bool
 }
 
+// NewWriter creates a new, default SREC writer
 func NewWriter(w io.Writer, aMode AddrMode) *Writer {
-	wtr := new(Writer)
-	wtr.w = w
-	wtr.width = 10
-	wtr.addrMode = aMode
-	return wtr
+	return &Writer{w: w, width: 10, addrMode: aMode}
 }
 
-// Enable emitting a Start Record as the terminating record before Close()
+// SetStartAddress enables emitting a Start Record as the terminating record before Close()
 func (x *Writer) SetStartAddress(a uint32) {
 	x.startAddr = a // used within an S7/S8/S9 record
 	x.emitStartRec = true
 }
 
+// SetAddrMode sets the address mode within the writer
 func (x *Writer) SetAddrMode(m AddrMode) {
 	x.addrMode = m
 }
 
+// SetCountEmit enables the emition of a count record
 func (x *Writer) SetCountEmit() {
 	x.emitCountRec = true
 }
 
-// for address field of S1/S2/S3 records
+// SetAddress sets the starting address for S1/S2/S3 records
 func (x *Writer) SetAddress(a uint32) {
 	x.Flush()
 	x.addr = a
 }
 
+// SetHeader allows a custom header to be included in the resulting SREC file
 func (x *Writer) SetHeader(h []byte) {
 	x.header = h
 }
@@ -92,7 +95,7 @@ func (x *Writer) emitDataRecord(p []byte) error {
 	var (
 		binBuf bytes.Buffer
 		recTyp byte
-		addr   []byte = bigEndianBin(x.addr)
+		addr   = bigEndianBin(x.addr)
 	)
 
 	switch x.addrMode {
@@ -139,7 +142,7 @@ func (x *Writer) emitDataRecord(p []byte) error {
 func (x *Writer) emitCountRecord() error {
 	var (
 		binBuf  bytes.Buffer
-		bigFile bool = x.count > 65535
+		bigFile = (x.count > 65535)
 		recTyp  byte
 	)
 
@@ -170,7 +173,7 @@ func (x *Writer) emitStartAddrRec() error {
 	var (
 		binBuf bytes.Buffer
 		recTyp byte
-		addr   []byte = bigEndianBin(x.startAddr)
+		addr   = bigEndianBin(x.startAddr)
 	)
 
 	const (
@@ -212,11 +215,12 @@ func (x *Writer) emitStartAddrRec() error {
 	return err
 }
 
-// Write blocks of data to stream;
+// Write is the idiomatic Go write function used for writing blocks of data
+// to a stream;
 func (x *Writer) Write(p []byte) (int, error) {
 	var (
 		writeCount  int
-		origXferLen int = len(p)
+		origXferLen = len(p)
 	)
 
 	// Has this writer already been closed?
@@ -232,14 +236,14 @@ func (x *Writer) Write(p []byte) (int, error) {
 
 	// Write caller's data to an internal FIFO; there may be residual
 	// bytes left over from a previous write.
-	_, err := x.buf.Write(p)
+	_, err := x.fifo.Write(p)
 	if err != nil {
 		return 0, err
 	}
 
 	// Write out as many full length data records as is possible
-	for x.buf.Len() >= x.width {
-		err := x.emitDataRecord(x.buf.Next(x.width))
+	for x.fifo.Len() >= x.width {
+		err := x.emitDataRecord(x.fifo.Next(x.width))
 		if err != nil {
 			return writeCount, err
 		}
@@ -249,10 +253,11 @@ func (x *Writer) Write(p []byte) (int, error) {
 	return origXferLen, nil
 }
 
+// Flush writes any data remaining in the fifo to the output stream.
 func (x *Writer) Flush() error {
-	remaining := x.buf.Len()
+	remaining := x.fifo.Len()
 	if remaining > 0 {
-		err := x.emitDataRecord(x.buf.Next(remaining))
+		err := x.emitDataRecord(x.fifo.Next(remaining))
 		if err != nil {
 			return err
 		}
@@ -260,8 +265,9 @@ func (x *Writer) Flush() error {
 	return nil
 }
 
-// Write out any terminating records.
-// Note: any underlying io.Writer will NOT closed at this level
+// Close is used to flush any buffered data to the output stream and
+// write potential termination record(s).
+// Note: any underlying io.Writer will NOT closed here
 func (x *Writer) Close() error {
 	if x.fin {
 		return errors.New("Writer already closed")
@@ -293,24 +299,10 @@ func (x *Writer) Close() error {
 
 // uint32 to []byte big-endian
 func bigEndianBin(x uint32) []byte {
-	var buf []byte = make([]byte, 4)
+	var buf = make([]byte, 4)
 	buf[0] = byte(x >> 24)
 	buf[1] = byte(x >> 16)
 	buf[2] = byte(x >> 8)
 	buf[3] = byte(x)
 	return buf
 }
-
-/*
-func main() {
-	w := NewWriter(os.Stdout, Addr24)
-	w.SetCountEmit()
-	w.SetAddress(0x1000)
-	w.SetHeader([]byte("This is a text header"))
-	w.SetStartAddress(0xfff0)
-	w.Write([]byte("This is the first record"))
-	w.Write([]byte("This is the second record"))
-	w.Write([]byte("This is the third record"))
-	w.Close()
-}
-*/

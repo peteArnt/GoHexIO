@@ -12,20 +12,20 @@ import (
 
 type srecType int
 
-// Generalized form of a hex record
+// HexRec is the generalized form of a hex record
 type HexRec struct {
 	Address    uint32
 	RecordType srecType
 	Data       []byte
 }
 
+// Enumerated S-Record types
 const (
-	S_Unknown srecType = (iota - 1) // -1
-	S0Header                        // 0
-	S1Data                          // 1...
-	S2Data                          //
-	S3Data                          //
-	_                               // S4 <-- Not defined in the standard
+	S0Header srecType = iota // 0
+	S1Data                   // 1...
+	S2Data                   //
+	S3Data                   //
+	_                        // S4 not defined in Motorola SREC standard
 	S5Count
 	S6Count
 	S7Start
@@ -40,7 +40,7 @@ func init() {
 	srecTypeMap = make(map[string]srecType)
 	srecStrMap = make(map[srecType]string)
 
-	var srecEnums []srecType = []srecType{
+	var srecEnums = []srecType{
 		S0Header, S1Data, S2Data,
 		S3Data, S5Count, S6Count,
 		S7Start, S8Start, S9Start}
@@ -52,6 +52,7 @@ func init() {
 	}
 }
 
+// String is the idiomatic Go string-ize method
 func (r HexRec) String() string {
 	var s string
 
@@ -78,7 +79,7 @@ func (r HexRec) String() string {
 }
 
 // Break the ASCII-Hex record up into fields; translate
-// fields into appropriate binary values.
+// and validate all fields according to record type.
 func decodeRecord(r string) (rec *HexRec, err error) {
 	defer func() {
 		if x := recover(); x != nil {
@@ -90,11 +91,11 @@ func decodeRecord(r string) (rec *HexRec, err error) {
 		address   string
 		data      string
 		checksum  string
-		header    string   = r[:2]
-		byteCount string   = r[2:4]
-		recTyp    srecType = srecTypeMap[header]
+		header    = r[:2]
+		byteCount = r[2:4]
+		recTyp    = srecTypeMap[header]
 		ovhd      int
-		csData    string = r[2 : len(r)-2] // this is what will be checksum'd
+		csData    = r[2 : len(r)-2] // this is what will be checksum'd
 	)
 
 	switch recTyp {
@@ -123,7 +124,7 @@ func decodeRecord(r string) (rec *HexRec, err error) {
 		return nil, err
 	}
 
-	csCalc, err := calcChecksumHexAscii(csData)
+	csCalc, err := calcChecksumHexASCII(csData)
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +159,7 @@ func decodeRecord(r string) (rec *HexRec, err error) {
 	return rec, nil
 }
 
+// Process all hex records
 func processRecords(records []string) ([]*HexRec, error) {
 	var hrecs []*HexRec
 
@@ -174,6 +176,8 @@ func processRecords(records []string) ([]*HexRec, error) {
 	return hrecs, nil
 }
 
+// Load contents of hex file into memory; break up into
+// a slice of strings.
 func loadFile(fn string) ([]string, error) {
 	content, err := ioutil.ReadFile(fn)
 	if err != nil {
@@ -185,6 +189,8 @@ func loadFile(fn string) ([]string, error) {
 	return records, nil
 }
 
+// ReadFile loads the contents of a hex file into memory and
+// converts the contents into a slice of hex records.
 func ReadFile(fn string) ([]*HexRec, error) {
 	records, err := loadFile(fn)
 	if err != nil {
@@ -194,13 +200,14 @@ func ReadFile(fn string) ([]*HexRec, error) {
 	return processRecords(records)
 }
 
-// Merge contiguous blocks of data thus resulting in fewer records. All other
+// CoalesceDataRecs merges a contiguous runs of data records. All other
 // record types are unaffected.  Contiguous data records are coalesced into
-// a so-called "jumbo" data record.
+// a so-called "jumbo" data record.  A jumbo record is really a hex record
+// that represents a large run of contiguous bytes
 func CoalesceDataRecs(list []*HexRec) []*HexRec {
 	type handler func(*HexRec, srecType)
 	var (
-		dataRecGroup   bool = false
+		dataRecGroup   bool
 		addressCounter uint32
 		outList        []*HexRec
 		data           bytes.Buffer
