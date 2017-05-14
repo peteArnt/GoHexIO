@@ -11,7 +11,7 @@ func TestChecksumCalc(t *testing.T) {
 	fmt.Println("TestChecksum()")
 
 	x := "137AF00A0A0D00000000000000000000000000"
-	cs, err := calcChecksumHexAscii(x)
+	cs, err := calcChecksumHexASCII(x)
 	if err != nil {
 		t.Fail()
 	}
