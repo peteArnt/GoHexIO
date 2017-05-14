@@ -13,6 +13,7 @@ type Writer struct {
 	w     io.Writer
 	width int
 	addr  uint16
+	fifo  bytes.Buffer
 }
 
 func NewWriterWidth(w io.Writer, width int) *Writer {
@@ -50,26 +51,34 @@ func (x *Writer) emitDataRecord(p []byte) error {
 }
 
 func (x *Writer) Write(p []byte) (int, error) {
-	b := p
-	count := 0
-	for w := len(b); w > 0; w = len(b) {
-		if w >= x.width {
-			err := x.emitDataRecord(b[0:x.width])
-			if err != nil {
-				return count, err
-			}
-			count += x.width
-			b = b[x.width:] // snip the front off of b
-		} else {
-			err := x.emitDataRecord(b)
-			if err != nil {
-				return count, err
-			}
-			count += len(b)
-			b = nil
+	var (
+		originalXferLen int = len(p)
+		xferLen         int
+	)
+
+	// Write caller's data to our internal FIFO
+	x.fifo.Write(p)
+
+	// Only write hex records 'width' wide.  Residual will be
+	// held in the FIFO until a follow-up write(), a Flush() or
+	// Writer is closed.
+	for x.fifo.Len() >= x.width {
+		err := x.emitDataRecord(x.fifo.Next(x.width))
+		if err != nil {
+			return xferLen, err
 		}
+		xferLen += x.width
 	}
-	return count, nil
+
+	return originalXferLen, nil
+}
+
+func (x *Writer) Flush() error {
+	err := x.emitDataRecord(x.fifo.Next(x.fifo.Len()))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // Note: the underlying io.Writer is NOT closed
