@@ -65,6 +65,11 @@ func (x *Writer) SetAddress(a uint32) {
 	x.addr = a
 }
 
+// SetWidth sets the number of bytes for each data record
+func (x *Writer) SetWidth(w int) {
+	x.width = w
+}
+
 // SetHeader allows a custom header to be included in the resulting SREC file
 func (x *Writer) SetHeader(h []byte) {
 	x.header = h

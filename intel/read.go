@@ -23,6 +23,15 @@ const (
 	StartLinAddr               // 05
 )
 
+var recTypeStr = map[RecTyp]string{
+	Data:         "Data",
+	EndOfFile:    "EOF",
+	ExtSegAddr:   "Extended Segment Address",
+	StartSegAddr: "Start Segment Address",
+	ExtLinAddr:   "Extended Linear Address",
+	StartLinAddr: "Start Linear Address",
+}
+
 // HexRec is an abstract hex record
 type HexRec struct {
 	Address    uint16
@@ -31,34 +40,8 @@ type HexRec struct {
 }
 
 func (r HexRec) String() string {
-	switch r.RecordType {
-	case Data:
-		return fmt.Sprintf("Address: 0x%04x, Type: Data, Data Length: %d",
-			r.Address, len(r.Data))
-
-	case EndOfFile:
-		return fmt.Sprintf("Address: 0x%04x, Type: EOF, Data: %v",
-			r.Address, r.Data)
-
-	case ExtSegAddr:
-		return fmt.Sprintf("Address: 0x%04x, Type: Extended Segment Address, Data: %v",
-			r.Address, r.Data)
-
-	case StartSegAddr:
-		return fmt.Sprintf("Address: 0x%04x, Type: Start Segment Address, Data: %v",
-			r.Address, r.Data)
-
-	case ExtLinAddr:
-		return fmt.Sprintf("Address: 0x%04x, Type: Extended Linear Address, Data: %v",
-			r.Address, r.Data)
-
-	case StartLinAddr:
-		return fmt.Sprintf("Address: 0x%04x, Type: Start Linear Address, Data: %v",
-			r.Address, r.Data)
-
-	default:
-		panic("Encountered unknown hex record type")
-	}
+	return fmt.Sprintf("Address: 0x%04x, Type: %s, Data: %v",
+		r.Address, recTypeStr[r.RecTyp], r.Data)
 }
 
 func decodeRecord(s string) (*HexRec, error) {
@@ -133,7 +116,9 @@ func ReadFile(fn string) ([]*HexRec, error) {
 	for _, rec := range records {
 		if len(rec) > 0 {
 			hr, err := decodeRecord(rec)
-			return hrecs, err
+			if err != nil {
+				return nil, err
+			}
 			hrecs = append(hrecs, hr)
 		}
 	}
